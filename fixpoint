@@ -1,0 +1,171 @@
+#!/bin/bash
+# name - fixpoints
+# description - this script fixes a connection problem with NetworkManager and many access points in one wireless network
+# argument 1 - what operation should be done
+# argument 2 - the networkconfigurationfile, if operation can or will handle
+# expected input/result - fixpoint refresh "wireless connection 1" > "wireless connection 1" gets locked to the best available accesspoint and delivers a stable connection
+# author - Fabian Stammen
+
+actualNetwork=$(nm-tool | egrep -o "[*][a-zA-Z0-9 ]*:" | egrep -o "[[:alnum:] ]*")	# the name of the network of the currently connected accesspoint 
+networkFilesDir="/etc/NetworkManager/system-connections"				# the path to  the folder where NetworkManagaer saves the network configuration files
+bestAccesspoint=""									# the accesspoint with the signalstrength
+
+#find the best accesspoint for given network
+findBest() {
+    local max=0		# the highest signalstrength
+    local pos2=0	# signalstrength loopcounter
+    local pos1=0	# accesspoint loopcounter
+    for i  in $(nm-tool | egrep "${network}.*Strength [0-9]{2}" | egrep -o "Strength [0-9]{2}" | egrep -o "[0-9]{2}");do
+	if [[ $i -ge $max ]];then
+	    pos1=$(expr "$pos1" + 1)
+	    max="$i"
+	fi
+    done
+    for i  in $(nm-tool | egrep "${network}.*([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}" | egrep -o "([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}");do
+	pos2=$(expr "$pos2" + 1)
+	if [[ $pos1 -eq $pos2 ]];then
+    	    bestAccesspoint="$i"
+	fi
+    done
+}
+
+#write $bestAccesspoint in given networkFile
+lock() {
+    local actualAccesspoint=$(sudo grep "^bssid=" "${networkFilesDir}/${networkFileName}")
+    if [ "${actualAccesspoint}" != "" ];then
+	echo "the network '${network}' is already locked to an accesspoint"
+	exit 1
+    fi
+    sudo sed -i "/^mode=infrastructure/a \
+bssid=${bestAccesspoint}" "${networkFilesDir}/${networkFileName}"
+    echo "the network '${network}' has been locked to the best accesspoint"
+}
+
+#erase accesspoint from given networkFile
+drop() {
+    local actualAccesspoint=$(sudo grep "^bssid=" "${networkFilesDir}/${networkFileName}")
+    if [ "${actualAccesspoint}" == "" ];then
+	echo "the network '${network}' was not locked to any accesspoint"
+	exit 1
+    fi
+    sudo sed -i "/^bssid=/d" "${networkFilesDir}/${networkFileName}"
+    echo "the access point for the network '${network}' has been dropped"
+}
+
+case "$1" in
+    "--help"|"-h")
+cat - <<EOF
+    list		lists all known networks
+	 
+    lock [NETWORK]	find the best accesspoint for the given networkfile
+	 		 and bind the network to it
+	 
+    drop [NETWORK]	drop the fix on accesspoint to the given network
+	 
+    refresh [NETWORK]   first drop the fix on an accesspoint of given network
+	 		 then find the best accesspoint for the given network
+	 		 and last bind the network to it
+	 
+	 
+    note that if NETWORK is not given the actual connected network is choosen
+    and also note if NETWORK has spaces in its name, put it between "" (double quoutes)
+	 
+EOF
+	exit 0;;
+    "list")
+	SAVEIFS=$IFS
+	IFS=$(echo -en "\n\b")
+	ls -1 "${networkFilesDir}" | while read file;do
+	    if [[ $(sudo grep "802-11-wireless" "${networkFilesDir}/${file}") != "" ]];then
+		echo "${file}"
+	    fi 
+	done
+	IFS=$SAVEIFS
+	exit 0;;
+    "lock")
+	if [ "$2" != "" ];then
+	    if [[ $(sudo grep "802-11-wireless" "${networkFilesDir}/$2") != "" ]];then
+		networkFileName="$2"
+		network=$(sudo egrep "^ssid=" "${networkFilesDir}/${networkFileName}" | egrep -o "=.*" | egrep -o "[^=].*")
+		if [[ $(nm-tool | egrep "${network}:") != "" ]];then
+		    findBest
+		    lock
+		else
+		    echo "there is no accesspoint avialable for the network '${network}'"
+		    exit 1
+		fi
+	    else
+		echo "there is no known network named '$2'. You might have to configure it first using the network manager"
+		exit 1
+	    fi
+	else
+	    if [[ "${actualNetwork}" != "" ]];then 
+		network="${actualNetwork}"
+		networkFileName=$(ls -1 "${networkFilesDir}" | egrep ".*${network}.*")
+		findBest
+		lock
+	    else
+		echo "at the moment you are not connected to any wireless network"
+		exit 1
+	    fi
+	fi
+	exit 0;;
+    "drop")
+	if [[ "$2" != "" ]];then
+	    if [[ $(sudo grep "802-11-wireless" "${networkFilesDir}/$2") != "" ]];then
+		networkFileName="$2"
+		network=$(sudo egrep "^ssid=" "${networkFilesDir}/${networkFileName}" | egrep -o "=.*" | egrep -o "[^=].*")
+		drop
+	    else
+		echo "there is no networkfile named '$2'"
+		exit 1
+	    fi
+	else
+	    if [[ "${actualNetwork}" != "" ]];then 
+		network="${actualNetwork}"
+		networkFileName=$(ls -1 "${networkFilesDir}" | egrep ".*${actualNetwork}.*")
+		drop
+	    else
+		echo "you are at the moment not connected to a network"
+		exit 1
+	    fi
+	fi
+	exit 0;;	
+    "refresh")
+	if [[ "$2" != "" ]];then
+	    if [[ $(sudo grep "802-11-wireless" "${networkFilesDir}/$2") != "" ]];then
+		networkFileName="$2"
+		network=$(sudo egrep "^ssid=" "${networkFilesDir}/${networkFileName}" | egrep -o "=.*" | egrep -o "[^=].*")
+		if [[ $(sudo grep "^bssid=" "${networkFilesDir}/${networkFileName}") != "" ]];then
+		    drop
+		fi
+		if [[ $(nm-tool | egrep "${network}:") != "" ]];then
+		    findBest
+		    lock
+		else
+		    echo "there is no accesspoint available for the network '${network}'."
+		    exit 1
+		fi
+	    else
+		echo "there is no networkfile named '$2'."
+		exit 1
+	    fi
+	else
+	    if [[ "${actualNetwork}" != "" ]];then 
+		network="${actualNetwork}"
+		networkFileName=$(ls -1 "${networkFilesDir}" | egrep ".*${network}.*")
+		if [[ $(sudo grep "^bssid=" "${networkFilesDir}/${networkFileName}") != "" ]];then
+		    drop
+		fi
+		findBest
+		lock
+	    else
+		echo "you are at the moment not connected to a network"
+		exit 1
+	    fi
+	fi
+	exit 0;;
+    *)
+	echo "type fixpoint --help of fixpoint -h for information how to use fixpoint"
+	exit 0;;
+esac
