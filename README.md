@@ -1,11 +1,11 @@
 # fixpoint
-The problem is that the linux NetworkManager tries to optimise your connection by scanning and rescanning to find the access point with the strongest signal. In this aspect, the wlan manager is a bit too zealous and needs some guidance, which the fixpoint script provides.
+The linux NetworkManager tries to optimise your connection by scanning and rescanning to find the access point with the strongest signal. In this aspect, it is a bit too zealous and causes alot of short disconnects due to constantly droping the connection in favor of connecting to the better accesspoint, even if it only one percent better.
 
 The script can list the known networks, which should be configured before you use fixpoint.\
 Then you can tell the NetworkManager, thorugh the fixpoint command, to lock to a particular access point.\
-When you change your position you should drop the lock or simply refresh your lock. 
+When you change your position you should drop the lock or simply refresh your lock when you sit at a new location. 
 
-### Using fixpoint
+### using fixpoint
 Call:\
 &nbsp;&nbsp;./fixpoint command
 
@@ -22,3 +22,16 @@ Parameters:\
 Examples:\
 &nbsp;&nbsp;fixpoint refresh "wireless connection 1"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"wireless connection 1" gets locked to the best available accesspoint and\
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;delivers a stable connection
+
+### installation guide
+I have not managed to write a install script but it is very uncomplicated.
+
+1. open the Terminal
+2. copy fixpoint in /bin/\
+&nbsp;&nbsp;&nbsp;&nbsp;$ sudo cp fixpoint /bin/
+3. copy fixpoint_auto in /etc/bash_completion.d/\
+&nbsp;&nbsp;&nbsp;&nbsp;$ sudo cp fixpoint_auto /etc/bash_completion.d/
+4. run fixpoint_auto once ... from now it will start on boot\
+&nbsp;&nbsp;&nbsp;&nbsp;$ . /etc/bash_completion.d/fixpoint_auto
+
+And you're done.
